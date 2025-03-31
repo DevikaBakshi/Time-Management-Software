@@ -1,6 +1,6 @@
 // src/pages/MeetingDetails.js
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -8,16 +8,36 @@ import "react-toastify/dist/ReactToastify.css";
 function MeetingDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [meetingData, setMeetingData] = useState({
+    title: "",
+    start_time: "",
+    end_time: "",
+    venue: "",
+    project_name: "",
+    created_by: "",
+    attendees: [] // Array of selected attendee IDs
+  });
   const [meeting, setMeeting] = useState(null);
   const [error, setError] = useState("");
   
-  // States for rescheduling
+  // Reschedule states
   const [showRescheduleForm, setShowRescheduleForm] = useState(false);
   const [newStart, setNewStart] = useState("");
   const [newEnd, setNewEnd] = useState("");
   const [newVenue, setNewVenue] = useState("");
-  
+
+  // Find available slots states
+  const [slotDate, setSlotDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split("T")[0];
+  });
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
   useEffect(() => {
+    const userId = localStorage.getItem("userId");
+    setMeetingData((prev) => ({ ...prev, created_by: userId }));
+
     async function fetchMeeting() {
       try {
         const response = await axios.get(`http://localhost:5000/api/meetings/${id}`);
@@ -30,7 +50,31 @@ function MeetingDetails() {
     fetchMeeting();
   }, [id]);
 
-  // Cancel meeting if the logged-in user is the creator (scheduler)
+  const findAvailableSlots = async () => {
+    setLoadingSlots(true);
+    try {
+      // Include both the organizer and the selected attendees in the query
+      const attendeeQuery = [meetingData.created_by, ...meetingData.attendees].join(",");
+      const response = await axios.get(
+        `http://localhost:5000/api/meetings/find-slot?date=${slotDate}&attendees=${attendeeQuery}`
+      );
+      setAvailableSlots(response.data.availableSlots);
+    } catch (error) {
+      console.error("Error finding slots:", error.response?.data || error.message);
+      setAvailableSlots([]);
+      toast.error(error.response?.data?.error || "Failed to fetch available slots.");
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  const applySlot = (slot) => {
+    // For rescheduling, update the new start/end fields.
+    setNewStart(slot.startISO);
+    setNewEnd(slot.endISO);
+    toast.info("Slot applied successfully!");
+  };
+
   const handleDelete = async () => {
     if (!window.confirm("Are you sure you want to cancel this meeting? Cancellation emails will be sent to all attendees.")) {
       return;
@@ -48,12 +92,10 @@ function MeetingDetails() {
     }
   };
 
-  // Toggle reschedule form visibility
   const handleRescheduleToggle = () => {
-    setShowRescheduleForm(!showRescheduleForm);
+    setShowRescheduleForm((prev) => !prev);
   };
 
-  // Confirm reschedule: send a PUT request to update meeting times and venue.
   const confirmReschedule = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -74,6 +116,10 @@ function MeetingDetails() {
   if (!meeting) return <p>Loading meeting details...</p>;
 
   const loggedUserId = localStorage.getItem("userId");
+  const meetingStart = new Date(meeting.start_time);
+  const now = new Date();
+  // Allow modification only if current time is before meeting's start time
+  const canModify = now < meetingStart;
 
   return (
     <div className="max-w-2xl mx-auto p-4">
@@ -118,68 +164,115 @@ function MeetingDetails() {
         )}
       </div>
 
-      {/* Cancel Meeting button: visible only if the logged-in user is the creator */}
-      {meeting.created_by.toString() === loggedUserId.toString() && (
-        <div className="mt-4">
-          <button 
-            onClick={handleDelete}
-            className="px-4 py-2 bg-red-500 text-white rounded"
-          >
-            Cancel Meeting
-          </button>
-        </div>
-      )}
+      {/* Only allow modification if the logged-in user is the creator AND the meeting hasn't started */}
+      {meeting.created_by.toString() === loggedUserId.toString() && canModify && (
+        <>
+          <div className="mt-4">
+            <button 
+              onClick={handleDelete}
+              className="px-4 py-2 bg-red-500 text-white rounded"
+            >
+              Cancel Meeting
+            </button>
+          </div>
 
-      {/* Reschedule Section: visible only for the meeting creator */}
-      {meeting.created_by.toString() === loggedUserId.toString() && (
-        <div className="mt-6 border-t pt-4">
-          <h3 className="text-xl font-semibold">Reschedule Meeting</h3>
-          <button 
-            onClick={handleRescheduleToggle}
-            className="mt-2 px-4 py-2 bg-orange-500 text-white rounded"
-          >
-            {showRescheduleForm ? "Hide Reschedule Form" : "Reschedule Meeting"}
-          </button>
+          <div className="mt-6 border-t pt-4">
+            <h3 className="text-xl font-semibold">Reschedule Meeting</h3>
+            <button 
+              onClick={handleRescheduleToggle}
+              className="mt-2 px-4 py-2 bg-orange-500 text-white rounded"
+            >
+              {showRescheduleForm ? "Hide Reschedule Form" : "Reschedule Meeting"}
+            </button>
 
-          {showRescheduleForm && (
-            <div className="mt-4 space-y-4">
-              <label className="block font-medium">
-                New Start Time:
-                <input
-                  type="datetime-local"
-                  value={newStart}
-                  onChange={(e) => setNewStart(e.target.value)}
-                  className="w-full p-2 border rounded"
-                />
-              </label>
-              <label className="block font-medium">
-                New End Time:
-                <input
-                  type="datetime-local"
-                  value={newEnd}
-                  onChange={(e) => setNewEnd(e.target.value)}
-                  className="w-full p-2 border rounded"
-                />
-              </label>
-              <label className="block font-medium">
-                New Venue:
-                <input
-                  type="text"
-                  value={newVenue}
-                  onChange={(e) => setNewVenue(e.target.value)}
-                  placeholder={meeting.venue}  // Optionally show current venue as placeholder
-                  className="w-full p-2 border rounded"
-                />
-              </label>
-              <button
-                onClick={confirmReschedule}
-                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded"
-              >
-                Confirm Reschedule
-              </button>
-            </div>
-          )}
-        </div>
+            {showRescheduleForm && (
+              <>
+                <div className="mt-4 space-y-4">
+                  <label className="block font-medium">
+                    New Start Time:
+                    <input
+                      type="datetime-local"
+                      value={newStart}
+                      onChange={(e) => setNewStart(e.target.value)}
+                      className="w-full p-2 border rounded"
+                    />
+                  </label>
+                  <label className="block font-medium">
+                    New End Time:
+                    <input
+                      type="datetime-local"
+                      value={newEnd}
+                      onChange={(e) => setNewEnd(e.target.value)}
+                      className="w-full p-2 border rounded"
+                    />
+                  </label>
+                  <label className="block font-medium">
+                    New Venue:
+                    <input
+                      type="text"
+                      value={newVenue}
+                      onChange={(e) => setNewVenue(e.target.value)}
+                      placeholder={meeting.venue}
+                      className="w-full p-2 border rounded"
+                    />
+                  </label>
+                  <button
+                    onClick={confirmReschedule}
+                    className="mt-2 px-4 py-2 bg-blue-500 text-white rounded"
+                  >
+                    Confirm Reschedule
+                  </button>
+                </div>
+                
+                {/* Find Available Slots Section */}
+                <div className="mt-6 border-t pt-4">
+                  <h3 className="text-xl font-semibold">Find Available Slots</h3>
+                  <div className="mt-2">
+                    <label className="block font-medium">
+                      Select Date for Available Slots:
+                      <input
+                        type="date"
+                        value={slotDate}
+                        onChange={(e) => setSlotDate(e.target.value)}
+                        className="w-full p-2 border rounded"
+                      />
+                    </label>
+                    <button
+                      onClick={findAvailableSlots}
+                      className="mt-2 px-4 py-2 bg-purple-500 text-white rounded"
+                      disabled={loadingSlots}
+                    >
+                      {loadingSlots ? "Finding Slots..." : "Find Available Slots"}
+                    </button>
+                  </div>
+                  {availableSlots.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="text-lg font-semibold">Available Slots:</h4>
+                      <ul className="list-disc pl-5">
+                        {availableSlots.map((slot, index) => (
+                          <li key={index} className="mt-2">
+                            <strong>Start:</strong> {slot.start} <br />
+                            <strong>End:</strong> {slot.end} <br />
+                            <button
+                              onClick={() => {
+                                setNewStart(slot.startISO);
+                                setNewEnd(slot.endISO);
+                                toast.info("Slot applied successfully!");
+                              }}
+                              className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded mt-2"
+                            >
+                              Use this Slot
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </>
       )}
 
       <button 

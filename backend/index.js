@@ -5,6 +5,7 @@ const dotenv = require("dotenv");
 const pool = require("./db");
 const sendEmail = require("./utils/emailService");
 const cron = require("node-cron");
+const { format } = require("date-fns");
 
 dotenv.config();
 
@@ -93,6 +94,90 @@ cron.schedule("* * * * *", async () => {
 
 // Uncomment the line below to run the cron job every minute for testing purposes
 // cron.schedule("* * * * *", async () => { ... });
+
+
+// DAILY SCHEDULE EMAIL CRON JOB
+// This job runs every day at 7:00 AM and sends each executive their schedule for the day.
+// The schedule is compiled from meetings, leaves, and engagements.
+cron.schedule("0 8 * * *", async () => {
+  try {
+    // Get today's date boundaries
+    const today = new Date();
+    const dayStart = new Date(today);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(today);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    // Query for all executives (excluding secretaries)
+    const execResult = await pool.query("SELECT user_id, name, email FROM users WHERE role = 'executive'");
+    const executives = execResult.rows;
+
+    for (const exec of executives) {
+      // Query meetings for this executive for today
+      const meetingsResult = await pool.query(
+        `SELECT 'Meeting' as type, title as description, start_time, end_time, venue 
+         FROM meetings m 
+         JOIN meeting_attendees ma ON m.meeting_id = ma.meeting_id 
+         WHERE ma.user_id = $1 AND m.start_time >= $2 AND m.end_time <= $3`,
+         [exec.user_id, dayStart, dayEnd]
+      );
+      // Query leaves for this executive for today
+      const leavesResult = await pool.query(
+        `SELECT 'Leave' as type, reason as description, leave_start as start_time, leave_end as end_time, NULL as venue
+         FROM leaves 
+         WHERE executive_id = $1 AND leave_start >= $2 AND leave_end <= $3`,
+         [exec.user_id, dayStart, dayEnd]
+      );
+      // Query engagements for this executive for today
+      const engagementsResult = await pool.query(
+        `SELECT 'Engagement' as type, description, engagement_start as start_time, engagement_end as end_time, NULL as venue
+         FROM engagements
+         WHERE executive_id = $1 AND engagement_start >= $2 AND engagement_end <= $3`,
+         [exec.user_id, dayStart, dayEnd]
+      );
+      
+      // Combine events
+      const events = [
+        ...meetingsResult.rows,
+        ...leavesResult.rows,
+        ...engagementsResult.rows
+      ];
+      // Sort events by start_time
+      events.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+
+      // Format today's date as dd/MM/yyyy
+      const dateStr = format(dayStart, "dd/MM/yyyy");
+
+      let emailContent = `Your schedule for ${dateStr}:\n\n`;
+      if (events.length === 0) {
+         emailContent += "No appointments scheduled for today.";
+      } else {
+         events.forEach(event => {
+           const startTime = format(new Date(event.start_time), "HH:mm");
+           const endTime = format(new Date(event.end_time), "HH:mm");
+           emailContent += `${event.type}: ${event.description ? event.description : ""}`;
+           if (event.venue) {
+             emailContent += ` (Venue: ${event.venue})`;
+           }
+           emailContent += `\nTime: ${startTime} - ${endTime}\n\n`;
+         });
+      }
+      
+      // Send the daily schedule email to the executive
+      await sendEmail(
+        exec.email,
+        `Your Daily Schedule for ${dateStr}`,
+        emailContent
+      );
+    }
+    console.log("Daily schedule emails sent to all executives.");
+  } catch (err) {
+    console.error("Error sending daily schedule emails:", err);
+  }
+});
+
+
+
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

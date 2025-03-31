@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const { format } = require("date-fns");
+const { verifyToken, requireExecutive } = require("../middleware/auth");
 
 /* ============================================
    GET /engagements/find-slot
@@ -190,63 +191,116 @@ router.post("/", async (req, res) => {
   }
 });
 
+
+// GET /leaves/:id
+// Fetches a single leave record by its primary key "id".
+router.get("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query("SELECT * FROM engagements WHERE id = $1", [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Leave not found" });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error fetching leave:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+
+
+
+
 /* ============================================
    PUT /engagements/:id
    Update an existing engagement after checking for conflicts
    ============================================ */
-router.put("/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { executive_id, engagement_start, engagement_end, description } = req.body;
-    
-    // Check conflicts (similar to POST)
-    const meetingConflict = await pool.query(
-      `SELECT m.meeting_id
-       FROM meetings m
-       JOIN meeting_attendees ma ON m.meeting_id = ma.meeting_id
-       WHERE ma.user_id = $1
-         AND (m.start_time, m.end_time) OVERLAPS ($2, $3)`,
-      [executive_id, engagement_start, engagement_end]
-    );
-    if (meetingConflict.rows.length > 0) {
-      return res.status(400).json({ error: "Time slot conflict with existing meetings." });
+   // PUT /engagements/:id - Update an existing engagement after checking for conflicts
+   router.put("/:id", verifyToken, requireExecutive, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { engagement_start, engagement_end, description } = req.body;
+      const executive_id = req.user.userId; // logged-in user's ID
+  
+      // Fetch the current engagement record
+      const engagementResult = await pool.query(
+        "SELECT * FROM engagements WHERE id = $1",
+        [id]
+      );
+      if (engagementResult.rows.length === 0) {
+        return res.status(404).json({ error: "Engagement not found" });
+      }
+      const engagementRecord = engagementResult.rows[0];
+  
+      // Ensure the engagement belongs to the logged-in user
+      if (engagementRecord.executive_id.toString() !== executive_id.toString()) {
+        return res.status(403).json({ error: "Only the engagement creator can update this engagement." });
+      }
+  
+      // Log the proposed start and end times for debugging
+      console.log("Proposed engagement start:", engagement_start);
+      console.log("Proposed engagement end:", engagement_end);
+  
+      // Conflict check with meetings
+      const meetingConflict = await pool.query(
+        `SELECT m.meeting_id, m.title, m.start_time, m.end_time
+         FROM meetings m
+         JOIN meeting_attendees ma ON m.meeting_id = ma.meeting_id
+         WHERE ma.user_id = $1
+           AND m.meeting_id <> $2
+           AND (m.start_time, m.end_time) OVERLAPS ($3, $4)`,
+        [executive_id, id, engagement_start, engagement_end]
+      );
+      if (meetingConflict.rows.length > 0) {
+        return res.status(400).json({
+          error: "Time slot conflict with existing meetings.",
+          conflicts: meetingConflict.rows
+        });
+      }
+  
+      // Conflict check with leaves
+      const leaveConflict = await pool.query(
+        `SELECT id, leave_start, leave_end
+         FROM leaves
+         WHERE executive_id = $1
+           AND (leave_start, leave_end) OVERLAPS ($2, $3)`,
+        [executive_id, engagement_start, engagement_end]
+      );
+      console.log("Leave conflict rows:", leaveConflict.rows);
+      if (leaveConflict.rows.length > 0) {
+        return res.status(400).json({ error: "Time slot conflict with existing leave." });
+      }
+  
+      // Conflict check with other engagements (excluding current record)
+      const engagementConflict = await pool.query(
+        `SELECT id, engagement_start, engagement_end
+         FROM engagements
+         WHERE executive_id = $1
+           AND id <> $2
+           AND (engagement_start, engagement_end) OVERLAPS ($3, $4)`,
+        [executive_id, id, engagement_start, engagement_end]
+      );
+      console.log("Other engagement conflict rows:", engagementConflict.rows);
+      if (engagementConflict.rows.length > 0) {
+        return res.status(400).json({ error: "Time slot conflict with existing engagements." });
+      }
+  
+      // If no conflicts, update the engagement record
+      const updateResult = await pool.query(
+        "UPDATE engagements SET engagement_start = $1, engagement_end = $2, description = $3 WHERE id = $4 RETURNING *",
+        [engagement_start, engagement_end, description, id]
+      );
+      const updatedEngagement = updateResult.rows[0];
+      console.log("Updated engagement record:", updatedEngagement);
+  
+      res.json(updatedEngagement);
+    } catch (err) {
+      console.error("Error updating engagement:", err.message);
+      res.status(500).json({ error: "Server error" });
     }
-    
-    const leaveConflict = await pool.query(
-      `SELECT id
-       FROM leaves
-       WHERE executive_id = $1
-         AND (leave_start, leave_end) OVERLAPS ($2, $3)`,
-      [executive_id, engagement_start, engagement_end]
-    );
-    if (leaveConflict.rows.length > 0) {
-      return res.status(400).json({ error: "Time slot conflict with existing leave." });
-    }
-    
-    const engagementConflict = await pool.query(
-      `SELECT id
-       FROM engagements
-       WHERE executive_id = $1
-         AND id <> $4
-         AND (engagement_start, engagement_end) OVERLAPS ($2, $3)`,
-      [executive_id, engagement_start, engagement_end, id]
-    );
-    if (engagementConflict.rows.length > 0) {
-      return res.status(400).json({ error: "Time slot conflict with existing engagements." });
-    }
-    
-    // Update the engagement record
-    const updateResult = await pool.query(
-      "UPDATE engagements SET engagement_start = $1, engagement_end = $2, description = $3 WHERE id = $4 RETURNING *",
-      [engagement_start, engagement_end, description, id]
-    );
-    
-    res.json(updateResult.rows[0]);
-  } catch (err) {
-    console.error("Error updating engagement:", err.message);
-    res.status(500).json({ error: "Server error" });
-  }
-});
+  });
+  
 
 /* ============================================
    DELETE /engagements/:id

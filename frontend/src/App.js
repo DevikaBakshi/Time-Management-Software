@@ -12,6 +12,8 @@ import MeetingDetails from "./pages/MeetingDetails";
 import StatisticsDashboard from "./pages/StatisticsDashboard";
 import Profile from "./pages/Profile"; // Import Profile page
 import PrivateRoute from "./PrivateRoute";
+import LeaveDetails from "./pages/LeaveDetails";
+import EngagementDetails from "./pages/EngagementDetails";
 
 function App() {
   return (
@@ -87,6 +89,26 @@ function App() {
             </PrivateRoute>
           }
         />
+        
+        <Route
+          path="/leaves/:id"
+          element={
+            <PrivateRoute>
+              <LeaveDetails />
+            </PrivateRoute>
+          }
+        />
+        
+        
+        <Route
+          path="/engagements/:id"
+          element={
+            <PrivateRoute>
+              <EngagementDetails />
+            </PrivateRoute>
+          }
+        />
+
 
         {/* Fallback Route */}
         <Route path="*" element={<h1>Page Not Found</h1>} />

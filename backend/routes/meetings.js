@@ -33,6 +33,9 @@ router.get("/all", async (req, res) => {
    Create Meeting (Only Executives)
    Accepts meeting details along with an "attendees" array of additional executive invitees.
    ============================================ */
+// POST /create
+// Create Meeting (Only Executives)
+// Accepts meeting details along with an "attendees" array of additional executive invitees.
 router.post("/create", verifyToken, requireExecutive, async (req, res) => {
   try {
     const { title, start_time, end_time, venue, project_name, created_by, attendees } = req.body;
@@ -42,17 +45,44 @@ router.post("/create", verifyToken, requireExecutive, async (req, res) => {
 
     // Check conflicts for each attendee
     for (const userId of allAttendees) {
-      const conflictQuery = await pool.query(
+      // Check conflict with existing meetings
+      const meetingConflict = await pool.query(
         `SELECT m.meeting_id, m.title, m.start_time, m.end_time
          FROM meetings m
          JOIN meeting_attendees ma ON m.meeting_id = ma.meeting_id
          WHERE ma.user_id = $1 AND (m.start_time, m.end_time) OVERLAPS ($2, $3)`,
         [userId, start_time, end_time]
       );
-      if (conflictQuery.rows.length > 0) {
+      if (meetingConflict.rows.length > 0) {
         return res.status(400).json({ 
-          error: "Time slot conflict for one or more attendees. Please choose a different time.",
-          conflicts: conflictQuery.rows
+          error: "Time slot conflict with existing meetings for one or more attendees.",
+          conflicts: meetingConflict.rows
+        });
+      }
+      
+      // Check conflict with leaves
+      const leaveConflict = await pool.query(
+        `SELECT id
+         FROM leaves
+         WHERE executive_id = $1 AND (leave_start, leave_end) OVERLAPS ($2, $3)`,
+        [userId, start_time, end_time]
+      );
+      if (leaveConflict.rows.length > 0) {
+        return res.status(400).json({ 
+          error: "Time slot conflict with an existing leave for one or more attendees."
+        });
+      }
+      
+      // Check conflict with engagements
+      const engagementConflict = await pool.query(
+        `SELECT id
+         FROM engagements
+         WHERE executive_id = $1 AND (engagement_start, engagement_end) OVERLAPS ($2, $3)`,
+        [userId, start_time, end_time]
+      );
+      if (engagementConflict.rows.length > 0) {
+        return res.status(400).json({ 
+          error: "Time slot conflict with an existing engagement for one or more attendees."
         });
       }
     }
@@ -478,62 +508,112 @@ router.get("/:id", async (req, res) => {
    - Updates the meeting record.
    - Sends reschedule emails to all attendees (excluding the scheduler).
    ============================================ */
-router.put("/:id", verifyToken, requireExecutive, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { start_time, end_time, venue } = req.body;
-    const userId = req.user.userId;
-    
-    // Fetch meeting details
-    const meetingResult = await pool.query("SELECT * FROM meetings WHERE meeting_id = $1", [id]);
-    if (meetingResult.rows.length === 0) {
-      return res.status(404).json({ error: "Meeting not found" });
-    }
-    const meeting = meetingResult.rows[0];
-    
-    // Only the meeting creator can reschedule
-    if (meeting.created_by.toString() !== userId.toString()) {
-      return res.status(403).json({ error: "Only the meeting creator can reschedule this meeting." });
-    }
-    
-    // (Optional) Add conflict checking here if needed
-    
-    // Update the meeting record
-    const updateResult = await pool.query(
-      "UPDATE meetings SET start_time = $1, end_time = $2, venue = $3 WHERE meeting_id = $4 RETURNING *",
-      [start_time, end_time, venue, id]
-    );
-    const updatedMeeting = updateResult.rows[0];
-    
-    // Fetch all attendees (excluding the scheduler)
-    const attendeesResult = await pool.query(
-      `SELECT u.email, u.name 
-       FROM meeting_attendees ma 
-       JOIN users u ON ma.user_id = u.user_id 
-       WHERE ma.meeting_id = $1 AND u.user_id <> $2`,
-      [id, userId]
-    );
-    const attendees = attendeesResult.rows;
-    
-    // Fetch scheduler details
-    const schedulerResult = await pool.query("SELECT * FROM users WHERE user_id = $1", [userId]);
-    const scheduler = schedulerResult.rows[0];
-    
-    // Send reschedule emails to each attendee (excluding the scheduler)
-    for (const attendee of attendees) {
-      await sendEmail(
-        attendee.email,
-        "Meeting Rescheduled",
-        `Dear ${attendee.name},\n\nPlease note that the meeting "${updatedMeeting.title}" has been rescheduled by ${scheduler.name}.\nNew Timing: ${new Date(updatedMeeting.start_time).toLocaleString()} to ${new Date(updatedMeeting.end_time).toLocaleString()}.\nNew Venue: ${venue}\n\nRegards,\nTMS Team`
+   router.put("/:id", verifyToken, requireExecutive, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { start_time, end_time, venue } = req.body;
+      const userId = req.user.userId;
+      
+      // Fetch meeting details
+      const meetingResult = await pool.query("SELECT * FROM meetings WHERE meeting_id = $1", [id]);
+      if (meetingResult.rows.length === 0) {
+        return res.status(404).json({ error: "Meeting not found" });
+      }
+      const meeting = meetingResult.rows[0];
+      
+      // Only the meeting creator can update the meeting
+      if (meeting.created_by.toString() !== userId.toString()) {
+        return res.status(403).json({ error: "Only the meeting creator can update this meeting." });
+      }
+      
+      // Retrieve all attendees of this meeting (including the creator)
+      const attendeesResult = await pool.query(
+        "SELECT user_id FROM meeting_attendees WHERE meeting_id = $1",
+        [id]
       );
+      const attendeeIds = attendeesResult.rows.map(row => row.user_id);
+      
+      // Check conflicts for each attendee
+    for (const userId of attendeeIds) {
+      // Check conflict with existing meetings
+      const meetingConflict = await pool.query(
+        `SELECT m.meeting_id, m.title, m.start_time, m.end_time
+         FROM meetings m
+         JOIN meeting_attendees ma ON m.meeting_id = ma.meeting_id
+         WHERE ma.user_id = $1 AND (m.start_time, m.end_time) OVERLAPS ($2, $3)`,
+        [userId, start_time, end_time]
+      );
+      if (meetingConflict.rows.length > 0) {
+        return res.status(400).json({ 
+          error: "Time slot conflict with existing meetings for one or more attendees.",
+          conflicts: meetingConflict.rows
+        });
+      }
+      
+      // Check conflict with leaves
+      const leaveConflict = await pool.query(
+        `SELECT id
+         FROM leaves
+         WHERE executive_id = $1 AND (leave_start, leave_end) OVERLAPS ($2, $3)`,
+        [userId, start_time, end_time]
+      );
+      if (leaveConflict.rows.length > 0) {
+        return res.status(400).json({ 
+          error: "Time slot conflict with an existing leave for one or more attendees."
+        });
+      }
+      
+      // Check conflict with engagements
+      const engagementConflict = await pool.query(
+        `SELECT id
+         FROM engagements
+         WHERE executive_id = $1 AND (engagement_start, engagement_end) OVERLAPS ($2, $3)`,
+        [userId, start_time, end_time]
+      );
+      if (engagementConflict.rows.length > 0) {
+        return res.status(400).json({ 
+          error: "Time slot conflict with an existing engagement for one or more attendees."
+        });
+      }
     }
-    
-    res.json(updatedMeeting);
-  } catch (err) {
-    console.error("Error rescheduling meeting:", err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
+      
+      // Update the meeting record
+      const updateResult = await pool.query(
+        "UPDATE meetings SET start_time = $1, end_time = $2, venue = $3 WHERE meeting_id = $4 RETURNING *",
+        [start_time, end_time, venue, id]
+      );
+      const updatedMeeting = updateResult.rows[0];
+      
+      // Fetch all attendees (excluding the scheduler) to send reschedule emails
+      const nonCreatorAttendeesResult = await pool.query(
+        `SELECT u.email, u.name 
+         FROM meeting_attendees ma 
+         JOIN users u ON ma.user_id = u.user_id 
+         WHERE ma.meeting_id = $1 AND u.user_id <> $2`,
+        [id, userId]
+      );
+      const nonCreatorAttendees = nonCreatorAttendeesResult.rows;
+      
+      // Fetch scheduler details (the meeting creator)
+      const schedulerResult = await pool.query("SELECT * FROM users WHERE user_id = $1", [userId]);
+      const scheduler = schedulerResult.rows[0];
+      
+      // Send reschedule emails to each attendee (excluding the scheduler)
+      for (const attendee of nonCreatorAttendees) {
+        await sendEmail(
+          attendee.email,
+          "Meeting Rescheduled",
+          `Dear ${attendee.name},\n\nPlease note that the meeting "${updatedMeeting.title}" has been rescheduled by ${scheduler.name}.\nNew Timing: ${new Date(updatedMeeting.start_time).toLocaleString()} to ${new Date(updatedMeeting.end_time).toLocaleString()}.\nNew Venue: ${venue}\n\nRegards,\nTMS Team`
+        );
+      }
+      
+      res.json(updatedMeeting);
+    } catch (err) {
+      console.error("Error rescheduling meeting:", err);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+  
 
 /* ============================================
    DELETE /:id

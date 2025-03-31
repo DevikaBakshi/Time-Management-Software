@@ -107,6 +107,7 @@ function Profile() {
                 <th className="border px-2 py-1">Start Time</th>
                 <th className="border px-2 py-1">End Time</th>
                 <th className="border px-2 py-1">Additional Info</th>
+                <th className="border px-2 py-1">Details</th>
               </tr>
             </thead>
             <tbody>
@@ -131,13 +132,27 @@ function Profile() {
                   <td className="border px-2 py-1">
                     {item.type === "Meeting" && item.venue ? `Venue: ${item.venue}` : ""}
                   </td>
+                  <td className="border px-2 py-1">
+                    {item.type === "Meeting" ? (
+                      <Link to={`/meeting-details/${item.id}`} className="text-blue-500 hover:underline">
+                        View Details
+                      </Link>
+                    ) : item.type === "Leave" ? (
+                      <Link to={`/leaves/${item.id}`} className="text-blue-500 hover:underline">
+                        View Details
+                      </Link>
+                    ) : item.type === "Engagement" ? (
+                      <Link to={`/engagements/${item.id}`} className="text-blue-500 hover:underline">
+                        View Details
+                      </Link>
+                    ) : null}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
 
-        
         <ToastContainer />
       </div>
     </div>
