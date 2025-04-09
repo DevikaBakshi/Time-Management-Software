@@ -3,23 +3,80 @@ import React from "react";
 import { Link } from "react-router-dom";
 
 function Home() {
+  const fullPageStyle = {
+    minHeight: "100vh",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f8f9fa",
+    margin: 0,
+    padding: 0,
+    overflow: "hidden",
+  };
+
+  const containerStyle = {
+    maxWidth: "800px",
+    width: "100%",
+    padding: "40px 20px",
+    textAlign: "center",
+    fontFamily: "Arial, sans-serif",
+    backgroundColor: "#fff",
+    borderRadius: "8px",
+    boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
+  };
+
+  const headingStyle = {
+    fontSize: "2.5rem",
+    fontWeight: "bold",
+    marginBottom: "20px",
+    color: "#333",
+  };
+
+  const paragraphStyle = {
+    marginBottom: "30px",
+    fontSize: "1.2rem",
+    color: "#555",
+  };
+
+  const buttonContainerStyle = {
+    display: "flex",
+    justifyContent: "center",
+    gap: "20px",
+  };
+
+  const buttonStyle = {
+    padding: "10px 20px",
+    border: "none",
+    borderRadius: "5px",
+    color: "#fff",
+    fontSize: "1rem",
+    cursor: "pointer",
+    textDecoration: "none",
+  };
+
+  const loginButtonStyle = {
+    ...buttonStyle,
+    backgroundColor: "#007bff", // blue
+  };
+
+  const registerButtonStyle = {
+    ...buttonStyle,
+    backgroundColor: "#28a745", // green
+  };
+
   return (
-    <div className="container mx-auto p-4 text-center">
-      <h1 className="text-3xl font-bold mb-4">Welcome to the Time Management System</h1>
-      <p className="mb-6">Schedule and manage your meetings efficiently.</p>
-      <div className="space-x-4">
-        <Link 
-          to="/login" 
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          Login
-        </Link>
-        <Link 
-          to="/register" 
-          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-        >
-          Register
-        </Link>
+    <div style={fullPageStyle}>
+      <div style={containerStyle}>
+        <h1 style={headingStyle}>Welcome to the Time Management System</h1>
+        <p style={paragraphStyle}>Schedule and manage your meetings efficiently.</p>
+        <div style={buttonContainerStyle}>
+          <Link to="/login" style={loginButtonStyle}>
+            Login
+          </Link>
+          <Link to="/register" style={registerButtonStyle}>
+            Register
+          </Link>
+        </div>
       </div>
     </div>
   );

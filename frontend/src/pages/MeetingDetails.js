@@ -4,6 +4,9 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+// Make sure to import format from date-fns if you want to format dates in the available slots section.
+import { format } from "date-fns";
+import Navbar from "../components/Navbar";
 
 function MeetingDetails() {
   const { id } = useParams();
@@ -19,7 +22,7 @@ function MeetingDetails() {
   });
   const [meeting, setMeeting] = useState(null);
   const [error, setError] = useState("");
-  
+
   // Reschedule states
   const [showRescheduleForm, setShowRescheduleForm] = useState(false);
   const [newStart, setNewStart] = useState("");
@@ -35,21 +38,29 @@ function MeetingDetails() {
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   useEffect(() => {
-    const userId = localStorage.getItem("userId");
-    setMeetingData((prev) => ({ ...prev, created_by: userId }));
-
     async function fetchMeeting() {
       try {
+        console.log("Fetching meeting with id:", id); // Debug log
         const response = await axios.get(`http://localhost:5000/api/meetings/${id}`);
         setMeeting(response.data);
       } catch (err) {
-        console.error("Error fetching meeting details:", err);
+        console.error("Error fetching meeting details:", err.response?.data || err.message);
         setError(err.response?.data?.error || "Failed to fetch meeting details");
       }
     }
     fetchMeeting();
   }, [id]);
+  
 
+  const baseFont = { fontFamily: "Arial, sans-serif" };
+
+  const containerStyle = {
+    margin: "0",
+    padding: "0",
+    width: "100%",
+    overflowX: "hidden", // Prevent horizontal scroll
+    boxSizing: "border-box"
+  };
   const findAvailableSlots = async () => {
     setLoadingSlots(true);
     try {
@@ -68,15 +79,8 @@ function MeetingDetails() {
     }
   };
 
-  const applySlot = (slot) => {
-    // For rescheduling, update the new start/end fields.
-    setNewStart(slot.startISO);
-    setNewEnd(slot.endISO);
-    toast.info("Slot applied successfully!");
-  };
-
   const handleDelete = async () => {
-    if (!window.confirm("Are you sure you want to cancel this meeting? Cancellation emails will be sent to all attendees.")) {
+    if (!window.confirm("Are you sure you want to cancel this meeting?")) {
       return;
     }
     try {
@@ -112,179 +116,302 @@ function MeetingDetails() {
     }
   };
 
-  if (error) return <p className="text-red-500">{error}</p>;
-  if (!meeting) return <p>Loading meeting details...</p>;
+  // Disable modifications if the meeting has started or is ongoing
+  const meetingStart = new Date(meeting?.start_time);
+  const now = new Date();
+  const canModify = meeting && now < meetingStart;
+
+  if (error) return <p style={styles.error}>{error}</p>;
+  if (!meeting) return <p style={styles.loading}>Loading meeting details...</p>;
 
   const loggedUserId = localStorage.getItem("userId");
-  const meetingStart = new Date(meeting.start_time);
-  const now = new Date();
-  // Allow modification only if current time is before meeting's start time
-  const canModify = now < meetingStart;
 
   return (
-    <div className="max-w-2xl mx-auto p-4">
-      <h2 className="text-2xl font-bold mb-4">Meeting Details</h2>
-      <p><strong>Title:</strong> {meeting.title}</p>
-      <p>
-        <strong>Start Time:</strong> {new Date(meeting.start_time).toLocaleString()}
-      </p>
-      <p>
-        <strong>End Time:</strong> {new Date(meeting.end_time).toLocaleString()}
-      </p>
-      <p><strong>Venue:</strong> {meeting.venue}</p>
-      <p><strong>Project Name:</strong> {meeting.project_name}</p>
+    <div style={{ ...containerStyle, ...baseFont }}>
+      <Navbar/>
+      <div style={styles.content}>
+        <h2 style={styles.title}>Meeting Details</h2>
+        <p><strong>Title:</strong> {meeting.title}</p>
+        <p><strong>Start Time:</strong> {new Date(meeting.start_time).toLocaleString()}</p>
+        <p><strong>End Time:</strong> {new Date(meeting.end_time).toLocaleString()}</p>
+        <p><strong>Venue:</strong> {meeting.venue}</p>
+        <p><strong>Project Name:</strong> {meeting.project_name}</p>
 
-      <div className="mt-4">
-        <h3 className="text-xl font-semibold">Organizer Details</h3>
-        {meeting.organizer ? (
-          <div className="ml-4">
-            <p><strong>Name:</strong> {meeting.organizer.name}</p>
-            <p><strong>Email:</strong> {meeting.organizer.email}</p>
-            <p><strong>User ID:</strong> {meeting.organizer.user_id}</p>
-          </div>
-        ) : (
-          <p>Organizer details not available</p>
-        )}
-      </div>
+        <div style={styles.section}>
+          <h3 style={styles.sectionTitle}>Organizer Details</h3>
+          {meeting.organizer ? (
+            <div style={styles.detailBox}>
+              <p><strong>Name:</strong> {meeting.organizer.name}</p>
+              <p><strong>Email:</strong> {meeting.organizer.email}</p>
+              <p><strong>User ID:</strong> {meeting.organizer.user_id}</p>
+            </div>
+          ) : (
+            <p>Organizer details not available</p>
+          )}
+        </div>
 
-      <div className="mt-4">
-        <h3 className="text-xl font-semibold">Attendees</h3>
-        {meeting.attendees && meeting.attendees.length > 0 ? (
-          <ul className="list-disc pl-5">
-            {meeting.attendees.map((attendee, index) => (
-              <li key={index}>
-                <p><strong>Name:</strong> {attendee.name}</p>
-                <p><strong>Email:</strong> {attendee.email}</p>
-                <p><strong>User ID:</strong> {attendee.user_id}</p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>No additional attendees.</p>
-        )}
-      </div>
+        <div style={styles.section}>
+          <h3 style={styles.sectionTitle}>Attendees</h3>
+          {meeting.attendees && meeting.attendees.length > 0 ? (
+            <ul style={styles.list}>
+              {meeting.attendees.map((attendee, index) => (
+                <li key={index} style={styles.listItem}>
+                  <p><strong>Name:</strong> {attendee.name}</p>
+                  <p><strong>Email:</strong> {attendee.email}</p>
+                  <p><strong>User ID:</strong> {attendee.user_id}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>No additional attendees.</p>
+          )}
+        </div>
 
-      {/* Only allow modification if the logged-in user is the creator AND the meeting hasn't started */}
-      {meeting.created_by.toString() === loggedUserId.toString() && canModify && (
-        <>
-          <div className="mt-4">
-            <button 
-              onClick={handleDelete}
-              className="px-4 py-2 bg-red-500 text-white rounded"
-            >
-              Cancel Meeting
-            </button>
-          </div>
-
-          <div className="mt-6 border-t pt-4">
-            <h3 className="text-xl font-semibold">Reschedule Meeting</h3>
-            <button 
-              onClick={handleRescheduleToggle}
-              className="mt-2 px-4 py-2 bg-orange-500 text-white rounded"
-            >
-              {showRescheduleForm ? "Hide Reschedule Form" : "Reschedule Meeting"}
-            </button>
-
-            {showRescheduleForm && (
-              <>
-                <div className="mt-4 space-y-4">
-                  <label className="block font-medium">
-                    New Start Time:
+        {meeting.created_by.toString() === loggedUserId.toString() && canModify && (
+          <>
+            <div style={styles.buttonContainer}>
+              <button style={styles.deleteButton} onClick={handleDelete}>Cancel Meeting</button>
+            </div>
+            <div style={styles.section}>
+              <h3 style={styles.sectionTitle}>Reschedule Meeting</h3>
+              <button style={styles.toggleButton} onClick={handleRescheduleToggle}>
+                {showRescheduleForm ? "Hide Reschedule Form" : "Reschedule Meeting"}
+              </button>
+              {showRescheduleForm && (
+                <>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>New Start Time:</label>
                     <input
                       type="datetime-local"
                       value={newStart}
                       onChange={(e) => setNewStart(e.target.value)}
-                      className="w-full p-2 border rounded"
+                      style={styles.input}
                     />
-                  </label>
-                  <label className="block font-medium">
-                    New End Time:
+                  </div>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>New End Time:</label>
                     <input
                       type="datetime-local"
                       value={newEnd}
                       onChange={(e) => setNewEnd(e.target.value)}
-                      className="w-full p-2 border rounded"
+                      style={styles.input}
                     />
-                  </label>
-                  <label className="block font-medium">
-                    New Venue:
+                  </div>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>New Venue:</label>
                     <input
                       type="text"
                       value={newVenue}
                       onChange={(e) => setNewVenue(e.target.value)}
                       placeholder={meeting.venue}
-                      className="w-full p-2 border rounded"
+                      style={styles.input}
                     />
-                  </label>
-                  <button
-                    onClick={confirmReschedule}
-                    className="mt-2 px-4 py-2 bg-blue-500 text-white rounded"
-                  >
+                  </div>
+                  <button style={styles.confirmButton} onClick={confirmReschedule}>
                     Confirm Reschedule
                   </button>
-                </div>
-                
-                {/* Find Available Slots Section */}
-                <div className="mt-6 border-t pt-4">
-                  <h3 className="text-xl font-semibold">Find Available Slots</h3>
-                  <div className="mt-2">
-                    <label className="block font-medium">
-                      Select Date for Available Slots:
+                  
+                  {/* Find Available Slots Section */}
+                  <div style={styles.slotSection}>
+                    <h3 style={styles.sectionTitle}>Find Available Slots</h3>
+                    <div style={styles.formGroup}>
+                      <label style={styles.label}>Select Date for Available Slots:</label>
                       <input
                         type="date"
                         value={slotDate}
                         onChange={(e) => setSlotDate(e.target.value)}
-                        className="w-full p-2 border rounded"
+                        style={styles.input}
                       />
-                    </label>
-                    <button
-                      onClick={findAvailableSlots}
-                      className="mt-2 px-4 py-2 bg-purple-500 text-white rounded"
-                      disabled={loadingSlots}
-                    >
+                    </div>
+                    <button style={styles.findButton} onClick={findAvailableSlots} disabled={loadingSlots}>
                       {loadingSlots ? "Finding Slots..." : "Find Available Slots"}
                     </button>
+                    {availableSlots.length > 0 && (
+                      <div style={styles.slotsContainer}>
+                        <h4 style={styles.sectionTitle}>Available Slots:</h4>
+                        <ul style={styles.list}>
+                          {availableSlots.map((slot, index) => (
+                            <li key={index} style={styles.listItem}>
+                              <p><strong>Start:</strong> {slot.start}</p>
+                              <p><strong>End:</strong> {slot.end}</p>
+                              <button
+                                style={styles.slotButton}
+                                onClick={() => {
+                                  setNewStart(slot.startISO);
+                                  setNewEnd(slot.endISO);
+                                  toast.info("Slot applied successfully!");
+                                }}
+                              >
+                                Use this Slot
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
-                  {availableSlots.length > 0 && (
-                    <div className="mt-4">
-                      <h4 className="text-lg font-semibold">Available Slots:</h4>
-                      <ul className="list-disc pl-5">
-                        {availableSlots.map((slot, index) => (
-                          <li key={index} className="mt-2">
-                            <strong>Start:</strong> {slot.start} <br />
-                            <strong>End:</strong> {slot.end} <br />
-                            <button
-                              onClick={() => {
-                                setNewStart(slot.startISO);
-                                setNewEnd(slot.endISO);
-                                toast.info("Slot applied successfully!");
-                              }}
-                              className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded mt-2"
-                            >
-                              Use this Slot
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </>
-      )}
-
-      <button 
-        onClick={() => navigate("/dashboard")}
-        className="mt-4 ml-2 px-4 py-2 bg-blue-500 text-white rounded"
-      >
-        Back to Dashboard
-      </button>
-
+                </>
+              )}
+            </div>
+          </>
+        )}
+        <div style={styles.buttonContainer}>
+          <button style={styles.backButton} onClick={() => navigate("/dashboard")}>Back to Dashboard</button>
+        </div>
+      </div>
       <ToastContainer />
     </div>
   );
 }
+
+const styles = {
+  container: {
+    maxWidth: "800px",
+    margin: "0 auto",
+    padding: "20px",
+    fontFamily: "Arial, sans-serif",
+    color: "#333"
+  },
+  navbar: {
+    backgroundColor: "#333",
+    color: "#fff",
+    padding: "10px 20px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center"
+  },
+  navItems: {
+    display: "flex",
+    gap: "15px"
+  },
+  navLink: {
+    color: "#fff",
+    textDecoration: "none",
+    fontWeight: "bold"
+  },
+  logoutButton: {
+    backgroundColor: "#e74c3c",
+    border: "none",
+    color: "#fff",
+    padding: "8px 16px",
+    cursor: "pointer",
+    borderRadius: "4px"
+  },
+  content: {
+    backgroundColor: "#f9f9f9",
+    padding: "20px",
+    borderRadius: "8px",
+    boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)"
+  },
+  title: {
+    fontSize: "24px",
+    marginBottom: "16px"
+  },
+  section: {
+    marginTop: "20px"
+  },
+  sectionTitle: {
+    fontSize: "20px",
+    fontWeight: "bold",
+    marginBottom: "8px"
+  },
+  detailBox: {
+    marginLeft: "20px",
+    padding: "10px",
+    backgroundColor: "#fff",
+    border: "1px solid #ccc",
+    borderRadius: "4px"
+  },
+  list: {
+    listStyleType: "disc",
+    paddingLeft: "20px"
+  },
+  listItem: {
+    marginBottom: "8px"
+  },
+  buttonContainer: {
+    marginTop: "20px"
+  },
+  deleteButton: {
+    backgroundColor: "#e74c3c",
+    color: "#fff",
+    padding: "10px 20px",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer"
+  },
+  toggleButton: {
+    backgroundColor: "#f39c12",
+    color: "#fff",
+    padding: "10px 20px",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer"
+  },
+  formGroup: {
+    marginBottom: "10px"
+  },
+  label: {
+    display: "block",
+    marginBottom: "5px",
+    fontWeight: "bold"
+  },
+  input: {
+    width: "100%",
+    padding: "8px",
+    border: "1px solid #ccc",
+    borderRadius: "4px"
+  },
+  confirmButton: {
+    backgroundColor: "#3498db",
+    color: "#fff",
+    padding: "10px 20px",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer"
+  },
+  slotSection: {
+    marginTop: "20px",
+    borderTop: "1px solid #ccc",
+    paddingTop: "10px"
+  },
+  findButton: {
+    backgroundColor: "#9b59b6",
+    color: "#fff",
+    padding: "10px 20px",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer"
+  },
+  slotsContainer: {
+    marginTop: "10px"
+  },
+  slotButton: {
+    backgroundColor: "#e67e22",
+    color: "#fff",
+    padding: "5px 10px",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer",
+    marginTop: "5px"
+  },
+  backButton: {
+    backgroundColor: "#2980b9",
+    color: "#fff",
+    padding: "10px 20px",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer"
+  },
+  error: {
+    color: "red",
+    textAlign: "center",
+    marginTop: "20px"
+  },
+  loading: {
+    textAlign: "center",
+    marginTop: "20px"
+  }
+};
 
 export default MeetingDetails;

@@ -2,9 +2,9 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import axios from "axios";
-import { format } from "date-fns";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import Navbar from "../components/Navbar";
 
 function LeaveDetails() {
   const { id } = useParams();
@@ -27,7 +27,6 @@ function LeaveDetails() {
     return today.toISOString().split("T")[0];
   });
   
-  // Fetch leave details
   useEffect(() => {
     async function fetchLeave() {
       try {
@@ -44,8 +43,8 @@ function LeaveDetails() {
     }
     fetchLeave();
   }, [id]);
-
-  // Handler to fetch available slots from the backend
+  
+  // Handler to fetch available slots from the backend for leave
   const fetchAvailableSlots = async () => {
     setLoadingLeaveSlots(true);
     try {
@@ -68,7 +67,7 @@ function LeaveDetails() {
 
   // Toggle reschedule form visibility
   const handleRescheduleToggle = () => {
-    setShowRescheduleForm((prev) => !prev);
+    setShowRescheduleForm(prev => !prev);
   };
 
   // Handler for confirming the reschedule (update)
@@ -107,24 +106,65 @@ function LeaveDetails() {
 
   const loggedUserId = localStorage.getItem("userId");
 
-  if (error) return <p className="text-red-500">{error}</p>;
-  if (!leave) return <p>Loading leave details...</p>;
+  if (error) return <p style={{ color: "red", textAlign: "center" }}>{error}</p>;
+  if (!leave) return <p style={{ textAlign: "center" }}>Loading leave details...</p>;
+/*
+  // Inline style objects
+  const containerStyle = {
+    maxWidth: "600px",
+    margin: "20px auto",
+    padding: "20px",
+    backgroundColor: "#fdfdfd",
+    border: "1px solid #ddd",
+    borderRadius: "8px",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+  };
+*/
+
+const baseFont = { fontFamily: "Arial, sans-serif" };
+
+  const containerStyle = {
+    margin: "0",
+    padding: "0",
+    width: "100%",
+    overflowX: "hidden", // Prevent horizontal scroll
+    boxSizing: "border-box"
+  };
+  const headingStyle = {
+    textAlign: "center",
+    marginBottom: "20px",
+    color: "#333"
+  };
+
+  const sectionStyle = {
+    marginTop: "20px",
+    paddingTop: "10px",
+    borderTop: "1px solid #ccc"
+  };
+
+  const buttonStyle = {
+    padding: "10px 20px",
+    borderRadius: "4px",
+    border: "none",
+    cursor: "pointer",
+    marginRight: "10px"
+  };
 
   return (
-    <div className="max-w-2xl mx-auto p-4">
-      <h2 className="text-2xl font-bold mb-4">Leave Details</h2>
-      <p>
-        <strong>Leave Start:</strong> {new Date(leave.leave_start).toLocaleString()}
-      </p>
-      <p>
-        <strong>Leave End:</strong> {new Date(leave.leave_end).toLocaleString()}
-      </p>
+    <div style={{ ...containerStyle, ...baseFont }}>
+      <Navbar/>
+      <h2 style={headingStyle}>Leave Details</h2>
+      <p><strong>Leave Start:</strong> {new Date(leave.leave_start).toLocaleString()}</p>
+      <p><strong>Leave End:</strong> {new Date(leave.leave_end).toLocaleString()}</p>
       <p><strong>Reason:</strong> {leave.reason}</p>
 
       {/* Allow update/delete only if the logged-in user is the one who marked the leave */}
       {leave.executive_id.toString() === loggedUserId.toString() && (
-        <div className="mt-4">
-          <button onClick={handleDelete} className="px-4 py-2 bg-red-500 text-white rounded">
+        <div style={{ marginTop: "20px" }}>
+          <button 
+            onClick={handleDelete}
+            style={{ ...buttonStyle, backgroundColor: "#e74c3c", color: "#fff" }}
+          >
             Delete Leave
           </button>
         </div>
@@ -132,33 +172,39 @@ function LeaveDetails() {
 
       {/* Reschedule Section: visible only for the leave creator */}
       {leave.executive_id.toString() === loggedUserId.toString() && (
-        <div className="mt-6 border-t pt-4">
-          <h3 className="text-xl font-semibold">Update Leave</h3>
-          <button onClick={handleRescheduleToggle} className="mt-2 px-4 py-2 bg-orange-500 text-white rounded">
+        <div style={sectionStyle}>
+          <h3 style={{ marginBottom: "10px" }}>Update Leave</h3>
+          <button 
+            onClick={handleRescheduleToggle}
+            style={{ ...buttonStyle, backgroundColor: "#e67e22", color: "#fff" }}
+          >
             {showRescheduleForm ? "Hide Reschedule Form" : "Reschedule Leave"}
           </button>
 
           {showRescheduleForm && (
-            <div className="mt-4 space-y-4">
-              <label className="block font-medium">
-                New Start Time:
+            <div style={{ marginTop: "10px" }}>
+              <div style={{ marginBottom: "10px" }}>
+                <label style={{ display: "block", marginBottom: "5px" }}>New Start Time:</label>
                 <input
                   type="datetime-local"
                   value={newStart}
                   onChange={(e) => setNewStart(e.target.value)}
-                  className="w-full p-2 border rounded"
+                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
                 />
-              </label>
-              <label className="block font-medium">
-                New End Time:
+              </div>
+              <div style={{ marginBottom: "10px" }}>
+                <label style={{ display: "block", marginBottom: "5px" }}>New End Time:</label>
                 <input
                   type="datetime-local"
                   value={newEnd}
                   onChange={(e) => setNewEnd(e.target.value)}
-                  className="w-full p-2 border rounded"
+                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
                 />
-              </label>
-              <button onClick={confirmReschedule} className="mt-2 px-4 py-2 bg-blue-500 text-white rounded">
+              </div>
+              <button
+                onClick={confirmReschedule}
+                style={{ ...buttonStyle, backgroundColor: "#3498db", color: "#fff" }}
+              >
                 Confirm Update
               </button>
             </div>
@@ -167,30 +213,30 @@ function LeaveDetails() {
       )}
 
       {/* Available Slots Section */}
-      <div className="mt-6 border-t pt-4">
-        <h3 className="text-xl font-semibold mb-2">Find Available Leave Slots</h3>
-        <div className="mb-2">
-          <label className="block mb-1 font-medium">Select Date:</label>
+      <div style={sectionStyle}>
+        <h3 style={{ marginBottom: "10px" }}>Find Available Leave Slots</h3>
+        <div style={{ marginBottom: "10px" }}>
+          <label style={{ display: "block", marginBottom: "5px" }}>Select Date:</label>
           <input
             type="date"
             value={leaveSlotDate}
             onChange={(e) => setLeaveSlotDate(e.target.value)}
-            className="w-full p-2 border rounded"
+            style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid #ccc" }}
           />
         </div>
         <button
           onClick={fetchAvailableSlots}
           disabled={loadingLeaveSlots}
-          className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded"
+          style={{ ...buttonStyle, backgroundColor: "#9b59b6", color: "#fff" }}
         >
           {loadingLeaveSlots ? "Finding Slots..." : "Find Available Leave Slots"}
         </button>
         {availableSlots.length > 0 && (
-          <div className="mt-4">
-            <h4 className="text-lg font-semibold">Available Slots:</h4>
-            <ul className="list-disc pl-5">
+          <div style={{ marginTop: "15px" }}>
+            <h4 style={{ fontWeight: "bold", marginBottom: "10px" }}>Available Slots:</h4>
+            <ul style={{ listStyleType: "disc", paddingLeft: "20px" }}>
               {availableSlots.map((slot, index) => (
-                <li key={index} className="mt-2">
+                <li key={index} style={{ marginBottom: "10px" }}>
                   <strong>Start:</strong> {slot.start} <br />
                   <strong>End:</strong> {slot.end} <br />
                   <button
@@ -199,7 +245,7 @@ function LeaveDetails() {
                       setNewEnd(slot.endISO);
                       toast.info("Slot applied successfully!");
                     }}
-                    className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded mt-2"
+                    style={{ ...buttonStyle, backgroundColor: "#f1c40f", color: "#fff" }}
                   >
                     Use this Slot
                   </button>
@@ -210,7 +256,7 @@ function LeaveDetails() {
         )}
       </div>
 
-      <Link to="/profile" className="mt-4 inline-block px-4 py-2 bg-blue-500 text-white rounded">
+      <Link to="/profile" style={{ display: "inline-block", marginTop: "20px", ...buttonStyle, backgroundColor: "#3498db", color: "#fff", textDecoration: "none", textAlign: "center" }}>
         Back to Profile
       </Link>
 

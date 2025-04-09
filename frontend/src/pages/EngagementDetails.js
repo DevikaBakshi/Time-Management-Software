@@ -4,18 +4,20 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import Navbar from "../components/Navbar";
 
 function EngagementDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [engagement, setEngagement] = useState(null);
   const [error, setError] = useState("");
-  
+
   // States for rescheduling
   const [showRescheduleForm, setShowRescheduleForm] = useState(false);
   const [newStart, setNewStart] = useState("");
   const [newEnd, setNewEnd] = useState("");
-  
+  const [newVenue, setNewVenue] = useState("");
+
   // States for available slots search
   const [slotDate, setSlotDate] = useState(() => {
     const today = new Date();
@@ -24,6 +26,16 @@ function EngagementDetails() {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
+
+  const baseFont = { fontFamily: "Arial, sans-serif" };
+
+  const containerStyle = {
+    margin: "0",
+    padding: "0",
+    width: "100%",
+    overflowX: "hidden", // Prevent horizontal scroll
+    boxSizing: "border-box"
+  };
   useEffect(() => {
     async function fetchEngagement() {
       try {
@@ -58,8 +70,7 @@ function EngagementDetails() {
   // Toggle reschedule form visibility
   const handleRescheduleToggle = () => {
     setShowRescheduleForm((prev) => !prev);
-    // Clear any previously found available slots when toggling the form
-    setAvailableSlots([]);
+    setAvailableSlots([]); // Clear any available slots when toggling the form
   };
 
   // Handler for finding available slots for rescheduling
@@ -104,104 +115,102 @@ function EngagementDetails() {
     }
   };
 
-  if (error) return <p className="text-red-500">{error}</p>;
+  if (error) return <p style={styles.errorText}>{error}</p>;
   if (!engagement) return <p>Loading engagement details...</p>;
 
   const loggedUserId = localStorage.getItem("userId");
 
   return (
-    <div className="max-w-2xl mx-auto p-4">
-      <h2 className="text-2xl font-bold mb-4">Engagement Details</h2>
-      <p>
-        <strong>Engagement Start:</strong> {new Date(engagement.engagement_start).toLocaleString()}
-      </p>
-      <p>
-        <strong>Engagement End:</strong> {new Date(engagement.engagement_end).toLocaleString()}
-      </p>
-      <p><strong>Description:</strong> {engagement.description}</p>
+    <div style={{ ...containerStyle, ...baseFont }}>
+      <Navbar/>
+      <h2 style={styles.heading}>Engagement Details</h2>
+      <div style={styles.detailBox}>
+        <p><strong>Engagement Start:</strong> {new Date(engagement.engagement_start).toLocaleString()}</p>
+        <p><strong>Engagement End:</strong> {new Date(engagement.engagement_end).toLocaleString()}</p>
+        <p><strong>Description:</strong> {engagement.description}</p>
+      </div>
 
       {/* Delete button: visible only if the logged-in user is the creator */}
       {engagement.executive_id.toString() === loggedUserId.toString() && (
-        <div className="mt-4">
-          <button 
-            onClick={handleDelete}
-            className="px-4 py-2 bg-red-500 text-white rounded"
-          >
+        <div style={styles.buttonContainer}>
+          <button onClick={handleDelete} style={styles.deleteButton}>
             Delete Engagement
           </button>
         </div>
       )}
 
-      {/* Reschedule Section: visible only if the logged-in user is the creator */}
+      {/* Reschedule Section: visible only for the meeting creator */}
       {engagement.executive_id.toString() === loggedUserId.toString() && (
-        <div className="mt-6 border-t pt-4">
-          <h3 className="text-xl font-semibold">Reschedule Engagement</h3>
-          <button 
-            onClick={handleRescheduleToggle}
-            className="mt-2 px-4 py-2 bg-orange-500 text-white rounded"
-          >
+        <div style={styles.rescheduleSection}>
+          <h3 style={styles.subHeading}>Reschedule Engagement</h3>
+          <button onClick={handleRescheduleToggle} style={styles.toggleButton}>
             {showRescheduleForm ? "Hide Reschedule Form" : "Show Reschedule Options"}
           </button>
 
           {showRescheduleForm && (
-            <div className="mt-4 space-y-4">
-              <label className="block font-medium">
-                New Start Time:
+            <div style={styles.formContainer}>
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>New Start Time:</label>
                 <input
                   type="datetime-local"
                   value={newStart}
                   onChange={(e) => setNewStart(e.target.value)}
-                  className="w-full p-2 border rounded"
+                  style={styles.input}
                 />
-              </label>
-              <label className="block font-medium">
-                New End Time:
+              </div>
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>New End Time:</label>
                 <input
                   type="datetime-local"
                   value={newEnd}
                   onChange={(e) => setNewEnd(e.target.value)}
-                  className="w-full p-2 border rounded"
+                  style={styles.input}
                 />
-              </label>
-              <button
-                onClick={confirmReschedule}
-                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded"
-              >
-                Confirm Update
+              </div>
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>New Venue:</label>
+                <input
+                  type="text"
+                  value={newVenue}
+                  onChange={(e) => setNewVenue(e.target.value)}
+                  placeholder={engagement.venue || "Enter new venue"}
+                  style={styles.input}
+                />
+              </div>
+              <button onClick={confirmReschedule} style={styles.confirmButton}>
+                Confirm Reschedule
               </button>
 
               {/* Find Available Slots Section */}
-              <div className="mt-6 border-t pt-4">
-                <h4 className="text-lg font-semibold mb-2">Find Available Slots</h4>
-                <div className="mb-2">
-                  <label className="block mb-1 font-medium">
-                    Select Date for Available Slots:
-                  </label>
+              <div style={styles.slotSection}>
+                <h4 style={styles.subHeading}>Find Available Slots</h4>
+                <div style={styles.inputGroup}>
+                  <label style={styles.label}>Select Date for Available Slots:</label>
                   <input
                     type="date"
                     value={slotDate}
                     onChange={(e) => setSlotDate(e.target.value)}
-                    className="w-full p-2 border rounded"
+                    style={styles.input}
                   />
                 </div>
                 <button
                   onClick={findAvailableSlots}
                   disabled={loadingSlots}
-                  className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded"
+                  style={styles.slotButton}
                 >
                   {loadingSlots ? "Finding Slots..." : "Find Available Slots"}
                 </button>
                 {availableSlots.length > 0 && (
-                  <div className="mt-4">
-                    <h5 className="text-lg font-semibold">Available Slots:</h5>
-                    <ul className="list-disc pl-5">
+                  <div style={styles.slotList}>
+                    <h5 style={styles.subHeading}>Available Slots:</h5>
+                    <ul style={styles.ulList}>
                       {availableSlots.map((slot, index) => (
-                        <li key={index} className="mt-2">
-                          <strong>Start:</strong> {slot.start} <br />
-                          <strong>End:</strong> {slot.end} <br />
+                        <li key={index} style={styles.liItem}>
+                          <p><strong>Start:</strong> {slot.start}</p>
+                          <p><strong>End:</strong> {slot.end}</p>
                           <button
                             onClick={() => applySlot(slot)}
-                            className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded mt-2"
+                            style={styles.applyButton}
                           >
                             Use this Slot
                           </button>
@@ -216,7 +225,7 @@ function EngagementDetails() {
         </div>
       )}
 
-      <Link to="/profile" className="mt-4 ml-2 px-4 py-2 bg-blue-500 text-white rounded">
+      <Link to="/profile" style={styles.backButton}>
         Back to Profile
       </Link>
 
@@ -224,5 +233,133 @@ function EngagementDetails() {
     </div>
   );
 }
+
+const styles = {
+  container: {
+    maxWidth: "600px",
+    margin: "20px auto",
+    padding: "20px",
+    border: "1px solid #ccc",
+    borderRadius: "8px",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+    fontFamily: "Arial, sans-serif",
+  },
+  heading: {
+    fontSize: "1.75rem",
+    fontWeight: "bold",
+    marginBottom: "20px",
+    textAlign: "center",
+  },
+  subHeading: {
+    fontSize: "1.25rem",
+    fontWeight: "bold",
+    marginBottom: "10px",
+  },
+  detailBox: {
+    backgroundColor: "#f9f9f9",
+    padding: "15px",
+    borderRadius: "4px",
+    marginBottom: "20px",
+  },
+  buttonContainer: {
+    marginTop: "10px",
+    textAlign: "center",
+  },
+  deleteButton: {
+    padding: "10px 20px",
+    backgroundColor: "#e53e3e",
+    color: "#fff",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer",
+  },
+  rescheduleSection: {
+    marginTop: "20px",
+    paddingTop: "10px",
+    borderTop: "1px solid #ccc",
+  },
+  toggleButton: {
+    padding: "10px 20px",
+    backgroundColor: "#dd6b20",
+    color: "#fff",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer",
+  },
+  formContainer: {
+    marginTop: "20px",
+  },
+  inputGroup: {
+    marginBottom: "15px",
+  },
+  label: {
+    display: "block",
+    fontWeight: "bold",
+    marginBottom: "5px",
+  },
+  input: {
+    width: "100%",
+    padding: "8px",
+    border: "1px solid #ccc",
+    borderRadius: "4px",
+    fontSize: "1rem",
+  },
+  confirmButton: {
+    padding: "10px 20px",
+    backgroundColor: "#3182ce",
+    color: "#fff",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer",
+  },
+  slotSection: {
+    marginTop: "20px",
+    paddingTop: "10px",
+    borderTop: "1px solid #ccc",
+  },
+  slotButton: {
+    padding: "10px 20px",
+    backgroundColor: "#6b46c1",
+    color: "#fff",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer",
+  },
+  slotList: {
+    marginTop: "15px",
+  },
+  ulList: {
+    listStyleType: "disc",
+    paddingLeft: "20px",
+  },
+  liItem: {
+    marginBottom: "10px",
+    padding: "10px",
+    backgroundColor: "#f7fafc",
+    borderRadius: "4px",
+  },
+  applyButton: {
+    marginTop: "5px",
+    padding: "5px 10px",
+    backgroundColor: "#d69e2e",
+    color: "#fff",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer",
+  },
+  backButton: {
+    display: "inline-block",
+    marginTop: "20px",
+    padding: "10px 20px",
+    backgroundColor: "#3182ce",
+    color: "#fff",
+    textDecoration: "none",
+    borderRadius: "4px",
+  },
+  errorText: {
+    color: "red",
+    textAlign: "center",
+  },
+};
 
 export default EngagementDetails;

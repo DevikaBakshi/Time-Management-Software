@@ -1,16 +1,17 @@
 // src/pages/CalendarView.js
 import React, { useState, useEffect } from "react";
 import Calendar from "react-calendar";
-import "react-calendar/dist/Calendar.css"; // Import the default styles
+import "react-calendar/dist/Calendar.css";
 import axios from "axios";
 import { Link } from "react-router-dom";
+import Navbar from "../components/Navbar";
 
 function CalendarView() {
   const [meetings, setMeetings] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [meetingsForDate, setMeetingsForDate] = useState([]);
 
-  // Fetch all meetings from the backend on component mount
+  // Fetch all meetings on component mount
   useEffect(() => {
     async function fetchMeetings() {
       try {
@@ -32,36 +33,104 @@ function CalendarView() {
     setMeetingsForDate(filtered);
   }, [selectedDate, meetings]);
 
+  // Inline styles
+  
+
+  const baseFont = { fontFamily: "Arial, sans-serif" };
+
+  const containerStyle = {
+    margin: "0",
+    padding: "0",
+    width: "100%",
+    overflowX: "hidden", // Prevent horizontal scroll
+    boxSizing: "border-box"
+  };
+  const headerStyle = {
+    backgroundColor: "#4a90e2",
+    color: "#fff",
+    padding: "10px 20px",
+    marginBottom: "20px",
+    textAlign: "center",
+  };
+
+  const navStyle = {
+    backgroundColor: "#333",
+    color: "#fff",
+    padding: "10px 20px",
+    display: "flex",
+    justifyContent: "space-around",
+    marginBottom: "20px",
+  };
+
+  const navLinkStyle = {
+    color: "#fff",
+    textDecoration: "none",
+    fontWeight: "bold",
+  };
+
+  const calendarContainerStyle = {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+  };
+
+  const meetingListStyle = {
+    marginTop: "20px",
+    padding: "10px",
+    backgroundColor: "#f9f9f9",
+    border: "1px solid #ddd",
+    borderRadius: "5px",
+    width: "100%",
+  };
+
+  const meetingItemStyle = {
+    marginBottom: "10px",
+    padding: "5px",
+    borderBottom: "1px solid #ccc",
+  };
+
+  const meetingLinkStyle = {
+    textDecoration: "none",
+    color: "#4a90e2",
+    fontWeight: "bold",
+  };
+
   return (
-    <div style={{ padding: "20px" }}>
-      <h2>Meeting Calendar</h2>
-      <Calendar onChange={setSelectedDate} value={selectedDate} />
-      <h3 style={{ marginTop: "20px" }}>
-        Meetings on {selectedDate.toDateString()}
-      </h3>
-      {meetingsForDate.length === 0 ? (
-        <p>No meetings scheduled for this date.</p>
-      ) : (
-        <ul>
-          {meetingsForDate.map((meeting) => (
-            <li key={meeting.meeting_id} style={{ marginBottom: "10px" }}>
-              <Link to={`/meeting-details/${meeting.meeting_id}`} className="text-blue-500 hover:underline">
-                <strong>{meeting.title}</strong>
-              </Link>{" "}
-              from{" "}
-              {new Date(meeting.start_time).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}{" "}
-              to{" "}
-              {new Date(meeting.end_time).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </li>
-          ))}
-        </ul>
-      )}
+    <div style={{ ...containerStyle, ...baseFont }}>
+      <Navbar/>
+      <header style={headerStyle}>
+        <h1>Meeting Calendar</h1>
+      </header>
+      
+      <div style={calendarContainerStyle}>
+        <Calendar onChange={setSelectedDate} value={selectedDate} />
+        <h3 style={{ marginTop: "20px" }}>
+          Meetings on {selectedDate.toDateString()}
+        </h3>
+        {meetingsForDate.length === 0 ? (
+          <p>No meetings scheduled for this date.</p>
+        ) : (
+          <div style={meetingListStyle}>
+            {meetingsForDate.map((meeting) => (
+              <div key={meeting.meeting_id} style={meetingItemStyle}>
+                <Link to={`/meeting-details/${meeting.meeting_id}`} style={meetingLinkStyle}>
+                  {meeting.title}
+                </Link>{" "}
+                from{" "}
+                {new Date(meeting.start_time).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}{" "}
+                to{" "}
+                {new Date(meeting.end_time).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

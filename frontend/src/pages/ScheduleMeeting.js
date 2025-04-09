@@ -1,9 +1,108 @@
-import { useState, useEffect } from "react";
+// src/pages/ScheduleMeeting.js
+import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import Select from "react-select";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import Navbar from "../components/Navbar";
+// Inline styles for the Navbar
+const navbarStyle = {
+  backgroundColor: "#333",
+  color: "#fff",
+  padding: "10px 20px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: "20px"
+};
+
+const navLinksStyle = {
+  display: "flex",
+  gap: "15px"
+};
+
+const linkStyle = {
+  color: "#fff",
+  textDecoration: "none",
+  fontWeight: "bold"
+};
+
+const baseFont = { fontFamily: "Arial, sans-serif" };
+/*
+// Inline style objects
+const containerStyle = {
+  margin: "0",
+  padding: "0",
+  width: "100%",
+  overflowX: "hidden", // Prevent horizontal scroll
+  boxSizing: "border-box"
+};
+*/
+// Inline styles for the container and form
+const containerStyle = {
+  maxWidth: "800px",
+  margin: "0 auto",
+  padding: "20px",
+  backgroundColor: "#f9f9f9",
+  borderRadius: "8px",
+  overflowX: "hidden",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
+};
+
+const headerStyle = {
+  textAlign: "center",
+  marginBottom: "20px",
+  fontSize: "1.75rem",
+  fontWeight: "bold",
+  color: "#333"
+};
+
+const formStyle = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "15px"
+};
+
+const labelStyle = {
+  fontWeight: "bold",
+  marginBottom: "5px",
+  color: "#333"
+};
+
+const inputStyle = {
+  width: "100%",
+  padding: "10px",
+  borderRadius: "4px",
+  border: "1px solid #ccc",
+  fontSize: "1rem"
+};
+
+const buttonStyle = {
+  padding: "12px",
+  borderRadius: "4px",
+  border: "none",
+  color: "#fff",
+  cursor: "pointer",
+  fontWeight: "bold"
+};
+
+const slotButtonStyle = {
+  ...buttonStyle,
+  backgroundColor: "#f59e0b", // yellow
+  marginTop: "10px"
+};
+
+const findSlotButtonStyle = {
+  ...buttonStyle,
+  backgroundColor: "#10b981", // green
+  marginTop: "10px"
+};
+
+const disabledButtonStyle = {
+  ...buttonStyle,
+  backgroundColor: "#9ca3af" // gray
+};
 
 function ScheduleMeeting() {
   const navigate = useNavigate();
@@ -19,7 +118,6 @@ function ScheduleMeeting() {
     attendees: [] // Array of selected attendee IDs
   });
   const [slotDate, setSlotDate] = useState(() => {
-    // Default to today's date formatted as YYYY-MM-DD
     const today = new Date();
     return today.toISOString().split("T")[0];
   });
@@ -35,13 +133,11 @@ function ScheduleMeeting() {
     return now.toISOString().slice(0, 16);
   };
 
+  
   // Fetch user role, user id, and available executives on mount
   useEffect(() => {
     const role = localStorage.getItem("userRole");
     const id = localStorage.getItem("userId");
-
-    console.log("User Role:", role);
-    console.log("User ID:", id);
 
     if (!id) {
       setError("Error: User ID not found. Please log in again.");
@@ -67,11 +163,11 @@ function ScheduleMeeting() {
   }, []);
 
   if (userRole === null) {
-    return <p>Loading...</p>;
+    return <p style={{ textAlign: "center" }}>Loading...</p>;
   }
 
   if (userRole !== "executive") {
-    return <p>You do not have permission to schedule meetings.</p>;
+    return <p style={{ textAlign: "center" }}>You do not have permission to schedule meetings.</p>;
   }
 
   const handleChange = (e) => {
@@ -96,7 +192,6 @@ function ScheduleMeeting() {
     e.preventDefault();
     setError("");
     setLoading(true);
-
     try {
       const token = localStorage.getItem("token");
       await axios.post("http://localhost:5000/api/meetings/create", meetingData, {
@@ -147,121 +242,130 @@ function ScheduleMeeting() {
   }));
 
   return (
-    <div className="max-w-lg mx-auto bg-white p-6 rounded-lg shadow-md">
-      <h2 className="text-2xl font-semibold mb-4">Schedule a New Meeting</h2>
-      {error && <p className="text-red-500">{error}</p>}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <label className="block">
-          Title:
-          <input
-            type="text"
-            name="title"
-            value={meetingData.title}
-            onChange={handleChange}
-            required
-            className="w-full p-2 border rounded"
-          />
-        </label>
-        <label className="block">
-          Start Time:
-          <input
-            type="datetime-local"
-            name="start_time"
-            value={meetingData.start_time}
-            onChange={handleChange}
-            required
-            min={getCurrentDateTimeLocal()}
-            className="w-full p-2 border rounded"
-          />
-        </label>
-        <label className="block">
-          End Time:
-          <input
-            type="datetime-local"
-            name="end_time"
-            value={meetingData.end_time}
-            onChange={handleChange}
-            required
-            min={meetingData.start_time || getCurrentDateTimeLocal()}
-            className="w-full p-2 border rounded"
-          />
-        </label>
-        <label className="block">
-          Venue:
-          <input
-            type="text"
-            name="venue"
-            value={meetingData.venue}
-            onChange={handleChange}
-            className="w-full p-2 border rounded"
-          />
-        </label>
-        <label className="block">
-          Project Name:
-          <input
-            type="text"
-            name="project_name"
-            value={meetingData.project_name}
-            onChange={handleChange}
-            className="w-full p-2 border rounded"
-          />
-        </label>
-        <label className="block">
-          Select Attendees:
-          <Select
-            isMulti
-            options={attendeeOptions}
-            value={selectedAttendees}
-            onChange={handleAttendeesChange}
-            placeholder="Search and select attendees..."
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={loading}
-          className={`w-full p-2 rounded ${loading ? "bg-gray-400" : "bg-blue-500 hover:bg-blue-600 text-white"}`}
-        >
-          {loading ? "Scheduling..." : "Schedule Meeting"}
-        </button>
-      </form>
-
-      <div className="mt-6">
-        <label className="block mb-2 font-medium">Select Date for Available Slots:</label>
-        <input
-          type="date"
-          value={slotDate}
-          onChange={handleSlotDateChange}
-          className="w-full p-2 border rounded mb-4"
-        />
-        <button
-          onClick={findAvailableSlots}
-          disabled={loadingSlots}
-          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
-        >
-          {loadingSlots ? "Finding Slots..." : "Find Available Slots"}
-        </button>
-        {availableSlots.length > 0 && (
-          <div className="mt-4">
-            <h3 className="text-lg font-semibold">Available Slots:</h3>
-            <ul className="list-disc pl-5">
-              {availableSlots.map((slot, index) => (
-                <li key={index} className="mt-2">
-                  <strong>Start:</strong> {slot.start} <br />
-                  <strong>End:</strong> {slot.end} <br />
-                  <button
-                    onClick={() => applySlot(slot)}
-                    className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded mt-2"
-                  >
-                    Use this Slot
-                  </button>
-                </li>
-              ))}
-            </ul>
+    <div style={{ ...baseFont }}>
+      <Navbar />
+      <div style={containerStyle}>
+        <h2 style={headerStyle}>Schedule a New Meeting</h2>
+        {error && <p style={{ color: "red", textAlign: "center" }}>{error}</p>}
+        <form onSubmit={handleSubmit} style={formStyle}>
+          <div>
+            <label style={labelStyle}>Title:</label>
+            <input
+              type="text"
+              name="title"
+              value={meetingData.title}
+              onChange={handleChange}
+              required
+              style={inputStyle}
+            />
           </div>
-        )}
-      </div>
+          <div>
+            <label style={labelStyle}>Start Time:</label>
+            <input
+              type="datetime-local"
+              name="start_time"
+              value={meetingData.start_time}
+              onChange={handleChange}
+              required
+              min={getCurrentDateTimeLocal()}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>End Time:</label>
+            <input
+              type="datetime-local"
+              name="end_time"
+              value={meetingData.end_time}
+              onChange={handleChange}
+              required
+              min={meetingData.start_time || getCurrentDateTimeLocal()}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Venue:</label>
+            <input
+              type="text"
+              name="venue"
+              value={meetingData.venue}
+              onChange={handleChange}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Project Name:</label>
+            <input
+              type="text"
+              name="project_name"
+              value={meetingData.project_name}
+              onChange={handleChange}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Select Attendees:</label>
+            <Select
+              isMulti
+              options={attendeeOptions}
+              value={selectedAttendees}
+              onChange={handleAttendeesChange}
+              placeholder="Search and select attendees..."
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            style={loading ? disabledButtonStyle : { ...buttonStyle, backgroundColor: "#3b82f6" }} // blue
+          >
+            {loading ? "Scheduling..." : "Schedule Meeting"}
+          </button>
+        </form>
 
-      <ToastContainer />
+        <div style={{ marginTop: "20px" }}>
+          <label style={{ ...labelStyle, marginBottom: "10px", display: "block" }}>
+            Select Date for Available Slots:
+          </label>
+          <input
+            type="date"
+            value={slotDate}
+            onChange={handleSlotDateChange}
+            style={{ ...inputStyle, marginBottom: "10px" }}
+          />
+          <button
+            onClick={findAvailableSlots}
+            disabled={loadingSlots}
+            style={loadingSlots ? disabledButtonStyle : { ...findSlotButtonStyle }}
+          >
+            {loadingSlots ? "Finding Slots..." : "Find Available Slots"}
+          </button>
+          {availableSlots.length > 0 && (
+            <div style={{ marginTop: "20px" }}>
+              <h3 style={{ fontSize: "1.25rem", fontWeight: "600", marginBottom: "10px" }}>Available Slots:</h3>
+              <ul style={{ listStyleType: "disc", paddingLeft: "20px" }}>
+                {availableSlots.map((slot, index) => (
+                  <li key={index} style={{ marginBottom: "10px" }}>
+                    <div>
+                      <strong>Start:</strong> {slot.start}
+                    </div>
+                    <div>
+                      <strong>End:</strong> {slot.end}
+                    </div>
+                    <button
+                      onClick={() => applySlot(slot)}
+                      style={slotButtonStyle}
+                    >
+                      Use this Slot
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <ToastContainer />
+      </div>
     </div>
   );
 }
